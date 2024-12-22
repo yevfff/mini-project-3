@@ -44,6 +44,13 @@ class Pagination(BaseModel):
     page: int = Field(1, ge=1)
     size: int = Field(10, ge=1, le=100)
 
+class AdFilter(BaseModel):
+    category: Optional[str] = Field(None, max_length=50)
+    min_price: Optional[float] = Field(None, ge=0)
+    max_price: Optional[float] = Field(None, ge=0)
+    location: Optional[str] = Field(None, max_length=100)
+    search: Optional[str] = Field(None, max_length=100)
+
 
 # TOKEN
 class Token(BaseModel):
