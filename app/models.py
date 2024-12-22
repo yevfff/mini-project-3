@@ -12,3 +12,5 @@ class User(Base):
     email = Column(String, nullable=False, unique=True)
     password = Column(String, nullable=False)
     created_at = Column(TIMESTAMP, nullable=False, default=text('CURRENT_TIMESTAMP'))
+
+
