@@ -50,9 +50,9 @@ def create_item(
         category: str = Form(...),
         price: float = Form(...),
         location: str = Form(...),
-        photo: Optional[UploadFile] = File(None),
+        photo: Optional[UploadFile] = None,
         db: Session = Depends(get_db),
-        current_user: schemas.UserOut = Depends(oauth2.get_current_user)
+        current_user: int = Depends(oauth2.get_current_user)
 ):
     file_path = None
 
@@ -85,39 +85,39 @@ def create_item(
     return new_item
 
 # @router.post("/", response_model=schemas.ItemView)
-# def create_item(
-#         item: schemas.ItemCreate,
-#         photo: Optional[UploadFile] = File(None),
-#         db: Session = Depends(get_db),
-#         current_user: schemas.UserOut = Depends(oauth2.get_current_user)
-# ):
-#     file_path = None
-#
-#     if photo:
-#         if not photo.content_type.startswith("image/"):
-#             raise HTTPException(status_code=400, detail="Uploaded file must be an image")
-#
-#         filename = f"{uuid4()}.jpg"
-#         file_path = os.path.join(UPLOAD_FOLDER, filename)
-#         try:
-#             with open(file_path, "wb") as f:
-#                 f.write(photo.file.read())
-#         except Exception as e:
-#             raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
-#
-#
-#     new_item = models.Item(
-#         title=item.title,
-#         description=item.description,
-#         category=item.category,
-#         price=item.price,
-#         location=item.location,
-#         user_id=current_user.id,
-#         photo_path=file_path
-#     )
-#     db.add(new_item)
-#     db.commit()
-#     db.refresh(new_item)
-#
-#     return new_item
+def create_item1(
+        item: schemas.ItemCreate,
+        photo: Optional[UploadFile] = None,
+        db: Session = Depends(get_db),
+        current_user: int = Depends(oauth2.get_current_user)
+):
+    file_path = None
+
+    if photo:
+        if not photo.content_type.startswith("image/"):
+            raise HTTPException(status_code=400, detail="Uploaded file must be an image")
+
+        filename = f"{uuid4()}.jpg"
+        file_path = os.path.join(UPLOAD_FOLDER, filename)
+        try:
+            with open(file_path, "wb") as f:
+                f.write(photo.file.read())
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
+
+
+    new_item = models.Item(
+        title=item.title,
+        description=item.description,
+        category=item.category,
+        price=item.price,
+        location=item.location,
+        user_id=current_user.id,
+        photo_path=file_path
+    )
+    db.add(new_item)
+    db.commit()
+    db.refresh(new_item)
+
+    return new_item
 
