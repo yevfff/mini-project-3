@@ -3,14 +3,16 @@ from datetime import datetime
 from typing import Optional
 
 
-# USER
+# USER SCHEMAS
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
 
+
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+
 
 class UserOut(BaseModel):
     id: int
@@ -18,44 +20,49 @@ class UserOut(BaseModel):
     created_at: datetime
 
     class Config:
-        arbitrary_types_allowed = True
+        orm_mode = True
 
 
-class AdCreate(BaseModel):
-    title: str = Field(..., min_length=5, max_length=100)
-    description: str = Field(..., min_length=10, max_length=1000)
-    category: str = Field(..., min_length=3, max_length=50)
-    price: float = Field(..., gt=0)
-    location: Optional[str] = Field(None, max_length=100)
+# ITEM SCHEMAS
+class ItemCreate(BaseModel):
+    title: str
+    description: str
+    category: str
+    price: float
+    location: Optional[str]
 
-class AdView(BaseModel):
+
+class ItemView(BaseModel):
     id: int
     title: str
     description: str
     category: str
     price: float
     location: Optional[str]
-    created_at: str
+    created_at: datetime
 
     class Config:
         orm_mode = True
 
+
+class ItemFilter(BaseModel):
+    category: Optional[str] = None
+    min_price: Optional[float] = None
+    max_price: Optional[float] = None
+    location: Optional[str] = None
+    search: Optional[str] = None
+
+
 class Pagination(BaseModel):
-    page: int = Field(1, ge=1)
-    size: int = Field(10, ge=1, le=100)
-
-class AdFilter(BaseModel):
-    category: Optional[str] = Field(None, max_length=50)
-    min_price: Optional[float] = Field(None, ge=0)
-    max_price: Optional[float] = Field(None, ge=0)
-    location: Optional[str] = Field(None, max_length=100)
-    search: Optional[str] = Field(None, max_length=100)
+    page: int = 1
+    size: int = 10
 
 
-# TOKEN
+# TOKEN SCHEMAS
 class Token(BaseModel):
     access_token: str
     token_type: str
+
 
 class TokenData(BaseModel):
     id: int
