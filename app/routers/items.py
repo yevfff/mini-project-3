@@ -33,7 +33,7 @@ def get_items(
     if filter_params.search:
         query = query.filter(models.Item.title.contains(filter_params.search))
 
-    # Apply pagination
+
     items = query.offset((pagination.page - 1) * pagination.size).limit(pagination.size).all()
 
     if not items:
