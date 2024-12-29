@@ -7,7 +7,7 @@ import os
 from uuid import uuid4
 
 router = APIRouter(
-    prefix="/items",
+    prefix="/api/items",
     tags=["Items"]
 )
 

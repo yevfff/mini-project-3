@@ -66,3 +66,21 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     id: int
+
+
+
+# CHAT
+class ChatMessage(BaseModel):
+    sender_id: int
+    recipient_id: int
+    content: str
+    timestamp: datetime
+
+    class Config:
+        orm_mode = True
+
+
+class ChatSummary(BaseModel):
+    partner_id: int
+    last_message: str
+    timestamp: datetime
