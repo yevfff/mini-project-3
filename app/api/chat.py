@@ -1,4 +1,4 @@
-from fastapi import APIRouter, WebSocket, Depends, WebSocketDisconnect, HTTPException, WebSocketException
+from fastapi import APIRouter, WebSocket, Depends, WebSocketDisconnect, HTTPException, WebSocketException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from typing import List
@@ -6,7 +6,6 @@ from app.database import get_db
 from app.oauth2 import get_current_user
 from app import models, schemas
 from json.decoder import JSONDecodeError
-
 
 router = APIRouter(
     prefix='/api',
@@ -18,6 +17,16 @@ active_connections = {}
 
 @router.websocket("/ws/chat/")
 async def websocket_chat(websocket: WebSocket, db: Session = Depends(get_db)):
+    """
+    WebSocket підключення для чату. Приймає повідомлення від користувача та надсилає їх отримувачу.
+
+    **Header**!!!
+    - **token**: Токен доступу користувача для аутентифікації.
+
+    **Response**
+    - Якщо отримувач онлайн, повідомлення буде надіслано через WebSocket.
+    - Якщо формат даних невірний, повертається помилка з описом.
+    """
     try:
         token: str = websocket.headers.get("token")
         if not token:
@@ -66,13 +75,18 @@ async def websocket_chat(websocket: WebSocket, db: Session = Depends(get_db)):
         del active_connections[user_id]
 
 
-
-
-@router.get("/chats", response_model=List[schemas.ChatSummary])
+@router.get("/chats", response_model=List[schemas.ChatSummary], status_code=status.HTTP_200_OK)
 def get_user_chats(
     db: Session = Depends(get_db),
     current_user: int = Depends(get_current_user)
 ):
+    """
+    Отримати список всіх чатів користувача. Чати представлені останнім повідомленням та партнером чату.
+
+    **Status Codes**
+    - 200: Успішне отримання чату
+    - 404: Якщо чати не знайдено
+    """
     user_id = current_user.id
 
     chats = db.query(models.ChatMessage).filter(
@@ -81,6 +95,9 @@ def get_user_chats(
             models.ChatMessage.recipient_id == user_id
         )
     ).distinct(models.ChatMessage.sender_id, models.ChatMessage.recipient_id).all()
+
+    if not chats:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No chats found")
 
     chat_summary = []
     for chat in chats:
@@ -101,12 +118,19 @@ def get_user_chats(
     return chat_summary
 
 
-@router.get("/chats/{recipient_id}", response_model=List[schemas.ChatMessage])
+@router.get("/chats/{recipient_id}", response_model=List[schemas.ChatMessage], status_code=status.HTTP_200_OK)
 def get_chat_messages(
     recipient_id: int,
     db: Session = Depends(get_db),
     current_user: int = Depends(get_current_user)
 ):
+    """
+    Отримати всі повідомлення в чаті.
+
+    **Path Parameters**
+    - **recipient_id**: Ідентифікатор отримувача чату.
+
+    """
     user_id = current_user.id
 
     messages = db.query(models.ChatMessage).filter(
@@ -115,5 +139,8 @@ def get_chat_messages(
             (models.ChatMessage.sender_id == recipient_id) & (models.ChatMessage.recipient_id == user_id)
         )
     ).order_by(models.ChatMessage.timestamp).all()
+
+    if not messages:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chat not found")
 
     return messages

@@ -4,10 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='css/login.css') }}">
 </head>
 <body>
     <h1>Login</h1>
-    <form action="/api/login" method="post">
+    <form id="loginForm" action="/api/login" method="post">
         <label for="username">Email:</label>
         <input type="text" id="username" name="username" required>
         <br>
@@ -16,5 +17,6 @@
         <br>
         <button type="submit">Login</button>
     </form>
+    <script src="{{ url_for('static', path='js/login.js') }}"></script>
 </body>
 </html>

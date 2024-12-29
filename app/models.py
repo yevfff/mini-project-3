@@ -8,6 +8,7 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, nullable=False)
     email = Column(String, nullable=False, unique=True)
+    username = Column(String, nullable=False, unique=True)
     password = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     items = relationship("Item", back_populates="owner", cascade="all, delete-orphan")
