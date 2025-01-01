@@ -1,146 +1,94 @@
-from fastapi import APIRouter, WebSocket, Depends, WebSocketDisconnect, HTTPException, WebSocketException, status
-from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+
 from typing import List
-from app.database import get_db
-from app.oauth2 import get_current_user
-from app import models, schemas
-from json.decoder import JSONDecodeError
+from sqlalchemy.orm import Session
+from .. import models, schemas, database
+from ..oauth2 import get_current_user, get_current_chat_user
+from datetime import datetime
 
-router = APIRouter(
-    prefix='/api',
-    tags=["Chats"]
-)
+router = APIRouter()
 
-active_connections = {}
-
-
-@router.websocket("/ws/chat/")
-async def websocket_chat(websocket: WebSocket, db: Session = Depends(get_db)):
-    """
-    WebSocket підключення для чату. Приймає повідомлення від користувача та надсилає їх отримувачу.
-
-    **Header**!!!
-    - **token**: Токен доступу користувача для аутентифікації.
-
-    **Response**
-    - Якщо отримувач онлайн, повідомлення буде надіслано через WebSocket.
-    - Якщо формат даних невірний, повертається помилка з описом.
-    """
-    try:
-        token: str = websocket.headers.get("token")
-        if not token:
-            raise HTTPException(status_code=401, detail="Missing or invalid token")
-
-        current_user = get_current_user(token=token, db=db)
-    except WebSocketException as e:
-        await websocket.close(code=1008, reason="Invalid authorization")
-        return
-
-    user_id = current_user.id
-    await websocket.accept()
-    active_connections[user_id] = websocket
-
-    try:
-        while True:
-            try:
-                data = await websocket.receive_json()
-            except JSONDecodeError:
-                await websocket.send_json({"error": "Invalid JSON format"})
-                continue
-
-            recipient_id = data.get("recipient_id")
-            content = data.get("content")
-
-            if not recipient_id or not content:
-                await websocket.send_json({"error": "Invalid data"})
-                continue
-
-            chat_message = models.ChatMessage(
-                sender_id=user_id,
-                recipient_id=recipient_id,
-                content=content
-            )
-            db.add(chat_message)
-            db.commit()
-
-            if recipient_id in active_connections:
-                await active_connections[recipient_id].send_json({
-                    "sender_id": user_id,
-                    "content": content,
-                    "timestamp": chat_message.timestamp.isoformat()
-                })
-
-    except WebSocketDisconnect:
-        del active_connections[user_id]
-
-
-@router.get("/chats", response_model=List[schemas.ChatSummary], status_code=status.HTTP_200_OK)
-def get_user_chats(
-    db: Session = Depends(get_db),
-    current_user: int = Depends(get_current_user)
-):
-    """
-    Отримати список всіх чатів користувача. Чати представлені останнім повідомленням та партнером чату.
-
-    **Status Codes**
-    - 200: Успішне отримання чату
-    - 404: Якщо чати не знайдено
-    """
-    user_id = current_user.id
-
+@router.get("/chats", response_model=List[schemas.ChatSummary])
+def get_user_chats(current_user: int = Depends(get_current_user), db: Session = Depends(database.get_db)):
     chats = db.query(models.ChatMessage).filter(
-        or_(
-            models.ChatMessage.sender_id == user_id,
-            models.ChatMessage.recipient_id == user_id
-        )
-    ).distinct(models.ChatMessage.sender_id, models.ChatMessage.recipient_id).all()
+        (models.ChatMessage.sender_id == current_user) | 
+        (models.ChatMessage.recipient_id == current_user)
+    ).all()
 
     if not chats:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No chats found")
+        raise HTTPException(status_code=404, detail="No chats found")
 
-    chat_summary = []
+    chat_summaries = []
     for chat in chats:
-        partner_id = chat.sender_id if chat.sender_id != user_id else chat.recipient_id
+        partner_id = chat.sender_id if chat.sender_id != current_user else chat.recipient_id
         last_message = db.query(models.ChatMessage).filter(
-            or_(
-                (models.ChatMessage.sender_id == user_id) & (models.ChatMessage.recipient_id == partner_id),
-                (models.ChatMessage.sender_id == partner_id) & (models.ChatMessage.recipient_id == user_id)
-            )
+            ((models.ChatMessage.sender_id == current_user) & (models.ChatMessage.recipient_id == partner_id)) | 
+            ((models.ChatMessage.sender_id == partner_id) & (models.ChatMessage.recipient_id == current_user))
         ).order_by(models.ChatMessage.timestamp.desc()).first()
+        
+        chat_summaries.append(schemas.ChatSummary(
+            partner_id=partner_id,
+            last_message=last_message.content if last_message else "No messages",
+            timestamp=last_message.timestamp if last_message else datetime.utcnow()
+        ))
 
-        chat_summary.append({
-            "partner_id": partner_id,
-            "last_message": last_message.content,
-            "timestamp": last_message.timestamp
-        })
-
-    return chat_summary
+    return chat_summaries
 
 
-@router.get("/chats/{recipient_id}", response_model=List[schemas.ChatMessage], status_code=status.HTTP_200_OK)
-def get_chat_messages(
-    recipient_id: int,
-    db: Session = Depends(get_db),
-    current_user: int = Depends(get_current_user)
-):
-    """
-    Отримати всі повідомлення в чаті.
 
-    **Path Parameters**
-    - **recipient_id**: Ідентифікатор отримувача чату.
 
-    """
-    user_id = current_user.id
+class WebSocketManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
 
-    messages = db.query(models.ChatMessage).filter(
-        or_(
-            (models.ChatMessage.sender_id == user_id) & (models.ChatMessage.recipient_id == recipient_id),
-            (models.ChatMessage.sender_id == recipient_id) & (models.ChatMessage.recipient_id == user_id)
-        )
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    async def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+
+    async def send_personal_message(self, websocket: WebSocket, message: str):
+        await websocket.send_text(message)
+
+    async def broadcast(self, message: str):
+        for connection in self.active_connections:
+            await connection.send_text(message)
+
+manager = WebSocketManager()
+
+
+@router.get("/chat_messages/{partner_id}", response_model=List[schemas.ChatMessage])
+def get_chat_messages(partner_id: int, current_user: int = Depends(get_current_user), db: Session = Depends(database.get_db)):
+    chat_messages = db.query(models.ChatMessage).filter(
+        ((models.ChatMessage.sender_id == current_user) & (models.ChatMessage.recipient_id == partner_id)) | 
+        ((models.ChatMessage.sender_id == partner_id) & (models.ChatMessage.recipient_id == current_user))
     ).order_by(models.ChatMessage.timestamp).all()
 
-    if not messages:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chat not found")
+    if not chat_messages:
+        raise HTTPException(status_code=404, detail="No messages found")
 
-    return messages
+    return chat_messages
+
+
+@router.websocket("/chat/{partner_id}")
+async def chat_websocket(websocket: WebSocket, partner_id: int, current_user: int = Depends(get_current_chat_user)):
+    await manager.connect(websocket)
+    try:
+        while True:
+            message = await websocket.receive_text()
+            db = Depends(database.get_db)
+            new_message = models.ChatMessage(
+                sender_id=current_user.id, 
+                recipient_id=partner_id,
+                content=message,
+                timestamp=datetime.utcnow()
+            )
+            db.add(new_message)
+            db.commit()
+
+            await manager.broadcast(f"User {current_user.id} says: {message}")
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+        await manager.broadcast(f"User {current_user.id} has left the chat.")
+

@@ -1,16 +1,15 @@
 import jwt
 from datetime import datetime, timedelta
 from . import schemas, database, models
-from fastapi import Depends, status, HTTPException
+from fastapi import Depends, status, HTTPException, Request, WebSocket
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
-
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='login')
 
-SECRET_KEY = 'settings.secret_key'
+SECRET_KEY = '09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7'
 ALGORITHM = 'HS256'
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 
 def create_access_token(data: dict):
@@ -24,6 +23,18 @@ def create_access_token(data: dict):
     return encoded_jwt
 
 
+def get_access_token(request: Request):
+    token = request.cookies.get("access_token")
+    if token:
+        return token
+
+    token = request.headers.get("Authorization")
+    if token:
+        return token
+
+    raise HTTPException(status_code=401, detail="Token missing or invalid")
+
+
 def verify_access_token(token: str, credentials_exception):
 
     try:
@@ -33,18 +44,58 @@ def verify_access_token(token: str, credentials_exception):
         if id is None:
             raise credentials_exception
         token_data = schemas.TokenData(id=id)
-    except jwt.PyJWTError:
+    except jwt.PyJWKError:
         raise credentials_exception
 
     return token_data
 
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(database.get_db)):
-    credentials_exception = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                                          detail=f"Could not validate credentials", headers={"WWW-Authenticate": "Bearer"})
+# def get_current_user(#token: str = Depends(oauth2_scheme)
+#                     token: str = Depends(get_access_token_from_cookie), db: Session = Depends(database.get_db)):
+#     credentials_exception = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+#                                           detail=f"Could not validate credentials", headers={"WWW-Authenticate": "Bearer"})
 
-    token = verify_access_token(token, credentials_exception)
+#     token = verify_access_token(token, credentials_exception)
 
-    user = db.query(models.User).filter(models.User.id == token.id).first()
+#     user = db.query(models.User).filter(models.User.id == token.id).first()
+
+#     return user
+
+
+def get_current_user(request: Request, db: Session = Depends(database.get_db)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"}
+    )
+
+    token = get_access_token(request) 
+    token_data = verify_access_token(token, credentials_exception)
+
+    user = db.query(models.User).filter(models.User.id == token_data.id).first()
+    if not user:
+        raise credentials_exception
 
     return user
+
+
+
+async def get_current_chat_user(websocket: WebSocket, db: Session = Depends(database.get_db)):
+    user_token = websocket.headers.get('Authorization')
+
+    if user_token:
+        try:
+            payload = jwt.decode(user_token, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = payload.get("user_id")
+            if user_id is None:
+                raise HTTPException(status_code=401, detail="Invalid token")
+            user = db.query(models.User).filter(models.User.id == user_id).first()
+            if not user:
+                raise HTTPException(status_code=401, detail="User not found")
+            return user
+        except jwt.ExpiredSignatureError:
+            raise HTTPException(status_code=401, detail="Token has expired")
+        except jwt.InvalidTokenError:
+            raise HTTPException(status_code=401, detail="Invalid token")
+    else:
+        raise HTTPException(status_code=400, detail="Authorization token missing")

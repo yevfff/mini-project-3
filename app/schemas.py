@@ -1,13 +1,20 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, validator
 from datetime import datetime
 from typing import Optional
 
 
 # USER SCHEMAS
 class UserCreate(BaseModel):
+    username: str = Field(..., min_length=3, title="Username", description="The username for the user, at least 3 characters long and starting with '@'.")
     email: EmailStr = Field(..., title="Email address", description="The email address of the user.")
     password: str = Field(..., min_length=8, title="Password", description="The password for the user, at least 8 characters long.")
 
+    @validator("username")
+    def validate_username(cls, value):
+        if not value.startswith("@"):
+            raise ValueError("Username must start with '@'.")
+        return value
+    
 
 class UserLogin(BaseModel):
     email: EmailStr = Field(..., title="Email address", description="The email address of the user.")
@@ -40,6 +47,7 @@ class ItemView(BaseModel):
     price: float = Field(..., title="Price", description="The price of the item.")
     location: Optional[str] = Field(None, title="Location", description="The location where the item is available.")
     created_at: datetime = Field(..., title="Creation Date", description="The date and time when the item was created.")
+    photo_path: Optional[str] = Field(None, title="Image URL", description="The URL of the item's image.")
 
     class Config:
         orm_mode = True

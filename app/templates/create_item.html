@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Item</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #fce4d6;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            text-align: center;
+            color: #ff8c42;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .input-group input, .input-group textarea, .input-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        .input-group textarea {
+            height: 150px;
+        }
+
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            background-color: #ff8c42;
+            border: none;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .btn:hover {
+            background-color: #e57c3d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Create New Item</h2>
+        <form action="/api/items/" method="post" enctype="multipart/form-data">
+            <div class="input-group">
+                <label for="title">Item Title</label>
+                <input type="text" id="title" name="title" required>
+            </div>
+            <div class="input-group">
+                <label for="description">Item Description</label>
+                <textarea id="description" name="description" required></textarea>
+            </div>
+            <div class="input-group">
+                <label for="category">Item Category</label>
+                <select id="category" name="category" required>
+                    <option value="electronics">Electronics</option>
+                    <option value="furniture">Furniture</option>
+                    <option value="clothing">Clothing</option>
+                    <!-- Add more categories here -->
+                </select>
+            </div>
+            <div class="input-group">
+                <label for="price">Price</label>
+                <input type="number" id="price" name="price" required>
+            </div>
+            <div class="input-group">
+                <label for="location">Location</label>
+                <input type="text" id="location" name="location" required>
+            </div>
+            <div class="input-group">
+                <label for="photo">Item Photo (Optional)</label>
+                <input type="file" id="photo" name="photo" accept="image/*">
+            </div>
+            <button type="submit" class="btn">Create Item</button>
+        </form>
+    </div>
+</body>
+</html>

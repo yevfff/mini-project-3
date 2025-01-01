@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from ..database import get_db
 from .. import models, schemas, oauth2
-import os
+from pathlib import Path
 from uuid import uuid4
 
 router = APIRouter(
@@ -11,9 +11,8 @@ router = APIRouter(
     tags=["Items"]
 )
 
-UPLOAD_FOLDER = "uploads/items_photos"
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
+UPLOAD_FOLDER = Path("uploads/items_photos")
+UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 
 @router.get("/", response_model=List[schemas.ItemView], status_code=status.HTTP_200_OK)
 def get_items(
@@ -47,7 +46,6 @@ def get_items(
 
     return items
 
-
 @router.post("/", response_model=schemas.ItemView, status_code=status.HTTP_201_CREATED)
 def create_item(
         title: str = Form(...),
@@ -60,15 +58,15 @@ def create_item(
         current_user: int = Depends(oauth2.get_current_user)
 ):
     """
-    Створення нового товару з можливістю завантаження фото.
+    Create a new item with the possibility to upload a photo.
 
     **Request Body**
-    - **title**: Назва товару.
-    - **description**: Опис товару.
-    - **category**: Категорія товару.
-    - **price**: Ціна товару.
-    - **location**: Місцезнаходження товару.
-    - **photo**: Фото товару (не обов'язково).
+    - **title**: Item title.
+    - **description**: Item description.
+    - **category**: Item category.
+    - **price**: Item price.
+    - **location**: Location where the item is located.
+    - **photo**: Optional photo of the item.
     """
     file_path = None
 
@@ -77,9 +75,9 @@ def create_item(
             raise HTTPException(status_code=400, detail="Uploaded file must be an image")
 
         filename = f"{uuid4()}.jpg"
-        file_path = os.path.join(UPLOAD_FOLDER, filename)
+        file_path = UPLOAD_FOLDER / filename
         try:
-            with open(file_path, "wb") as f:
+            with file_path.open("wb") as f:
                 f.write(photo.file.read())
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
@@ -91,7 +89,7 @@ def create_item(
         price=price,
         location=location,
         user_id=current_user.id,
-        photo_path=file_path
+        photo_path=f"items_photos/{filename}" if file_path else None
     )
     db.add(new_item)
     db.commit()
@@ -100,50 +98,27 @@ def create_item(
     return new_item
 
 
-# @router.post("/", response_model=schemas.ItemView, status_code=status.HTTP_201_CREATED)
-# def create_item1(
-#         item: schemas.ItemCreate,
-#         photo: Optional[UploadFile] = None,
-#         db: Session = Depends(get_db),
-#         current_user: int = Depends(oauth2.get_current_user)
-# ):
-#     """
-#     Створення нового товару з використанням схеми для товару та можливістю завантаження фото.
-#
-#     **Request Body**
-#     - **item**: Інформація про товар, включаючи його атрибути.
-#     - **photo**: Фото товару (не обов'язково).
-#
-#     **Response**
-#     - Створений товар з інформацією про нього.
-#
-#
-#     """
-#     file_path = None
-#
-#     if photo:
-#         if not photo.content_type.startswith("image/"):
-#             raise HTTPException(status_code=400, detail="Uploaded file must be an image")
-#
-#         filename = f"{uuid4()}.jpg"
-#         file_path = os.path.join(UPLOAD_FOLDER, filename)
-#         try:
-#             with open(file_path, "wb") as f:
-#                 f.write(photo.file.read())
-#         except Exception as e:
-#             raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
-#
-#     new_item = models.Item(
-#         title=item.title,
-#         description=item.description,
-#         category=item.category,
-#         price=item.price,
-#         location=item.location,
-#         user_id=current_user.id,
-#         photo_path=file_path
-#     )
-#     db.add(new_item)
-#     db.commit()
-#     db.refresh(new_item)
-#
-#     return new_item
+@router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_item(
+        item_id: int,
+        db: Session = Depends(get_db),
+        current_user: int = Depends(oauth2.get_current_user)
+):
+    """
+    Delete an item by its ID. Only the owner of the item can delete it.
+
+    **Request Body**
+    - **item_id**: ID of the item to be deleted.
+    """
+    item = db.query(models.Item).filter(models.Item.id == item_id).first()
+
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    if item.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You do not have permission to delete this item")
+
+    db.delete(item)
+    db.commit()
+
+    return {"detail": "Item deleted successfully"}
