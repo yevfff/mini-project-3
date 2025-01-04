@@ -80,13 +80,20 @@ def get_current_user(request: Request, db: Session = Depends(database.get_db)):
 
 
 
-async def get_current_chat_user(websocket: WebSocket, db: Session = Depends(database.get_db)):
+async def get_current_chat_user(websocket: WebSocket, db: Session):
     user_token = websocket.headers.get('Authorization')
+    if user_token:
+        return token
+
+    token = websocket.headers.get("Authorization")
+    if token:
+        return token
 
     if user_token:
         try:
             payload = jwt.decode(user_token, SECRET_KEY, algorithms=[ALGORITHM])
             user_id = payload.get("user_id")
+            print(user_id)
             if user_id is None:
                 raise HTTPException(status_code=401, detail="Invalid token")
             user = db.query(models.User).filter(models.User.id == user_id).first()

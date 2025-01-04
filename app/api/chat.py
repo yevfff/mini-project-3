@@ -72,12 +72,14 @@ def get_chat_messages(partner_id: int, current_user: int = Depends(get_current_u
 
 
 @router.websocket("/chat/{partner_id}")
-async def chat_websocket(websocket: WebSocket, partner_id: int, current_user: int = Depends(get_current_chat_user)):
+async def chat_websocket(websocket: WebSocket, partner_id: int):
+    db = database.get_db()
+    current_user = await get_current_chat_user(websocket, db)
     await manager.connect(websocket)
+
     try:
         while True:
             message = await websocket.receive_text()
-            db = Depends(database.get_db)
             new_message = models.ChatMessage(
                 sender_id=current_user.id, 
                 recipient_id=partner_id,
