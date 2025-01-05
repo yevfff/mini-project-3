@@ -38,7 +38,7 @@ def login(
     response.set_cookie(
         key="access_token",
         value=access_token,
-        httponly=True,
+        httponly=False,
         secure=False,
         path="/"
     )

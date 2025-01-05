@@ -21,12 +21,9 @@ def get_register_page(request: Request):
 def get_chats_page(request: Request, current_user: int = Depends(oauth2.get_current_user)):
     return templates.TemplateResponse("chats.html", {"request": request})
 
-@router.get('/inbox/chat/{chat_id}', response_class=HTMLResponse)
-def get_chat_page(chat_id: str, request: Request, current_user: int = Depends(oauth2.get_current_user)):
-    return templates.TemplateResponse(
-        "chat.html", 
-        {"request": request, "chat_id": chat_id, "user": current_user}
-    )
+@router.get('/inbox/chat/{partner_id}', response_class=HTMLResponse)
+def chat_page(partner_id: int, request: Request, current_user: dict = Depends(oauth2.get_current_user)):
+    return templates.TemplateResponse("chat.html", {"request": request, "partner_id": partner_id, "current_user": current_user})
 
 @router.get('/', response_class=HTMLResponse)
 def get_index_page(request: Request):

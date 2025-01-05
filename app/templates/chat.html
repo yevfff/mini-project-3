@@ -8,10 +8,8 @@
 </head>
 <body>
     <div class="container my-5">
-        <h1 class="text-center">Chat Room: {{ chat_id }}</h1>
-        <div class="border rounded p-3" style="height: 400px; overflow-y: scroll;" id="messages">
-            <!-- Messages will appear here -->
-        </div>
+        <h1 class="text-center">Chat Room: {{ partner_id }}</h1>
+        <div class="border rounded p-3" style="height: 400px; overflow-y: scroll;" id="messages"></div>
         <div class="d-flex mt-3">
             <input type="text" id="messageInput" class="form-control" placeholder="Type your message...">
             <button class="btn btn-primary ms-3" onclick="sendMessage()">Send</button>
@@ -19,39 +17,50 @@
     </div>
 
     <script>
-        const chatId = "{{ chat_id }}"; 
-        const userId = "{{ user['id'] }}";
-        
-        const ws = new WebSocket(`ws://127.0.0.1:8000/chat/${chatId}`);
+        const partnerId = {{ partner_id }};  
+        const socket = new WebSocket(`ws://localhost:8000/chat/${partnerId}`);
 
-        const messagesContainer = document.getElementById('messages');
-        const messageInput = document.getElementById('messageInput');
+        socket.onopen = function() {
+            console.log('WebSocket connected');
+            fetchMessages();
+        };
 
-        ws.onmessage = function(event) {
+        function fetchMessages() {
+            fetch(`/chat_messages/${partnerId}`)
+                .then(response => response.json())
+                .then(messages => {
+                    const messagesContainer = document.getElementById('messages');
+                    messagesContainer.innerHTML = '';
+                    messages.forEach(msg => {
+                        const messageElement = document.createElement('div');
+                        messageElement.textContent = `${msg.sender_username}: ${msg.content}`;
+                        messagesContainer.appendChild(messageElement);
+                    });
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                })
+                .catch(error => console.error('Error fetching messages:', error));
+        }
+
+        function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const message = messageInput.value.trim();
+            if (message) {
+                socket.send(message);
+                messageInput.value = '';
+            }
+        }
+
+        socket.onmessage = function(event) {
+            const [username, content] = event.data.split(': ', 2);
+            const messagesContainer = document.getElementById('messages');
             const messageElement = document.createElement('div');
-            messageElement.textContent = event.data;
-            messageElement.className = "p-2 border-bottom";
+            messageElement.textContent = `${username}: ${content}`;
             messagesContainer.appendChild(messageElement);
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         };
 
-        function sendMessage() {
-            const message = messageInput.value.trim();
-            if (message) {
-                ws.send(message);
-                messageInput.value = "";
-            }
-        }
-
-        ws.onclose = function() {
-            const messageElement = document.createElement('div');
-            messageElement.textContent = "Connection closed.";
-            messageElement.className = "text-danger text-center";
-            messagesContainer.appendChild(messageElement);
-        };
-
-        ws.onerror = function(error) {
-            console.error("WebSocket error:", error);
+        socket.onclose = function() {
+            console.log('WebSocket closed');
         };
     </script>
 </body>

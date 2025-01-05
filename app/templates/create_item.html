@@ -65,7 +65,7 @@
 <body>
     <div class="container">
         <h2>Create New Item</h2>
-        <form action="/api/items/" method="post" enctype="multipart/form-data">
+        <form id="create-item-form" enctype="multipart/form-data">
             <div class="input-group">
                 <label for="title">Item Title</label>
                 <input type="text" id="title" name="title" required>
@@ -98,5 +98,31 @@
             <button type="submit" class="btn">Create Item</button>
         </form>
     </div>
+
+    <script>
+        document.getElementById("create-item-form").addEventListener("submit", function(event) {
+            event.preventDefault();
+
+            let formData = new FormData(this);
+
+            fetch("/api/items/", {
+                method: "POST",
+                body: formData,
+            })
+            .then(response => response.json())
+            .then(data => {
+                // If the request is successful, redirect to the root URL
+                if (data && data.id) {
+                    window.location.href = '/';
+                } else {
+                    alert("Failed to create item.");
+                }
+            })
+            .catch(error => {
+                console.error("Error:", error);
+                alert("An error occurred. Please try again.");
+            });
+        });
+    </script>
 </body>
 </html>
