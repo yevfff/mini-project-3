@@ -79,6 +79,7 @@ class TokenData(BaseModel):
 # CHAT
 class ChatMessage(BaseModel):
     sender_id: int = Field(..., title="Sender ID", description="The ID of the user sending the message.")
+    # sender_username: str = Field(..., title="Sender Username", description="The username of the user sending the message.")
     recipient_id: int = Field(..., title="Recipient ID", description="The ID of the user receiving the message.")
     content: str = Field(..., title="Message Content", description="The content of the chat message.")
     timestamp: datetime = Field(..., title="Timestamp", description="The date and time when the message was sent.")
